@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Retail Voice Prompter</title>
+  <style>
+    :root { --bg:#0b1020; --panel:#151c31; --line:#273250; --ink:#f4f7ff; --muted:#9ca9c9; --accent:#6ea8ff; --red:#ff6e82; }
+    * { box-sizing:border-box; } body { height:100vh; overflow:hidden; margin:0; color:var(--ink); background:var(--bg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    header { display:flex; gap:12px; align-items:center; justify-content:space-between; padding:16px 22px; border-bottom:1px solid var(--line); background:#10172a; }
+    h1 { margin:0; font-size:18px; letter-spacing:.2px; } h1 span { color:var(--accent); }
+    .status { color:var(--muted); font-size:13px; } .status.on { color:#82e6ac; }
+    .version { color:var(--muted); font-size:11px; white-space:nowrap; }
+    .browser-note { display:block; margin:6px 0 0; color:var(--muted); font-size:10px; font-weight:400; }
+    .version { text-align:center; line-height:1.35; }
+    main { display:grid; grid-template-columns:350px 1fr; height:calc(100vh - 57px); min-height:0; }
+    aside { height:100%; padding:18px; border-right:1px solid var(--line); background:#11182b; overflow:auto; }
+    label { display:block; margin:0 0 7px; font-size:12px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.7px; }
+    textarea { width:100%; height:245px; resize:vertical; padding:12px; color:var(--ink); background:#0c1325; border:1px solid var(--line); border-radius:8px; font:14px/1.55 inherit; }
+    textarea:focus { outline:2px solid #385d9d; border-color:var(--accent); }
+    .buttons { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:12px 0 19px; }
+    button { cursor:pointer; border:1px solid var(--line); border-radius:7px; padding:10px 12px; color:var(--ink); background:#202a45; font-weight:700; }
+    button:hover { background:#2a3657; } button.primary { background:#356cc4; border-color:#5790ed; } button.primary:hover { background:#407ae0; } button.stop { background:#6a2637; border-color:#a54359; }
+    button.tts { background:#31577f; border-color:#4e7eae; }
+    button.tts-active { animation:listeningPulse 1.25s ease-in-out infinite; border-color:#82b8ff; }
+    .control { margin:16px 0; } input[type=range] { width:100%; accent-color:var(--accent); } .rangeEnds { display:flex; justify-content:space-between; margin-top:3px; color:var(--muted); font-size:11px; }
+    .check { display:flex; gap:9px; align-items:center; color:var(--muted); font-size:14px; margin:13px 0; }
+    .hint { padding:11px; border-left:3px solid var(--accent); color:var(--muted); background:#111c35; font-size:13px; }
+    .slide-buttons { display:flex; gap:6px; }
+    .slide-buttons button { flex:1 1 0; padding:7px 10px; font-size:13px; white-space:nowrap; }
+    .slide-buttons button:disabled { opacity:.4; cursor:not-allowed; }
+    @keyframes listeningPulse { 0%,100% { box-shadow:0 0 0 0 rgba(110,168,255,.65); } 50% { box-shadow:0 0 0 7px rgba(110,168,255,0); } }
+    button.listening { animation:listeningPulse 1.25s ease-in-out infinite; border-color:#82b8ff; }
+    .slide-empty { font-size:12px; color:var(--muted); margin:4px 0; }
+    #fsSlideNav { flex-basis:100%; min-width:0; }
+    #fsSlideNav[hidden] { display:none; }
+    #fsSlideButtons { flex-wrap:nowrap; max-width:100%; }
+    /* Match scrollbars to the dark navy interface and blue accent. */
+    * { scrollbar-width:thin; scrollbar-color:#356cc4 #11182b; }
+    *::-webkit-scrollbar { width:10px; height:10px; }
+    *::-webkit-scrollbar-track { background:#11182b; }
+    *::-webkit-scrollbar-thumb { background:#356cc4; border:2px solid #11182b; border-radius:999px; }
+    *::-webkit-scrollbar-thumb:hover { background:#5790ed; }
+    textarea::-webkit-scrollbar-track { background:#0c1325; }
+    textarea::-webkit-scrollbar-thumb { border-color:#0c1325; }
+    body.light-mode { color:#1d2638; background:#eef2f8; }
+    body.light-mode header { background:#fff; border-bottom-color:#d8e0ed; }
+    body.light-mode h1 span { color:#245aa8; }
+    body.light-mode .status { color:#687994; }
+    body.light-mode aside { background:#f6f8fc; border-color:#d8e0ed; }
+    body.light-mode label, body.light-mode .check { color:#65738a; }
+    body.light-mode textarea { color:#1d2638; background:#fff; border-color:#cbd6e6; }
+    body.light-mode textarea:focus { outline-color:#6ea8ff; }
+    body.light-mode button { color:#234f91; background:#fff; border-color:#cbd6e6; }
+    body.light-mode button:hover { background:#e8f1ff; }
+    body.light-mode button.primary { color:#fff; background:#356cc4; border-color:#5790ed; }
+    body.light-mode button.stop { color:#fff; background:#8f3044; border-color:#ad4a60; }
+    body.light-mode .hint { color:#65738a; background:#fff; border-color:#d8e0ed; }
+    body.light-mode .slide-empty { color:#718099; }
+    body.light-mode section { background:#eaf0f8; }
+    body.light-mode .toolbar { background:#fff; border-color:#d8e0ed; }
+    body.light-mode .toolbar button { color:#234f91; background:#edf3fc; }
+    body.light-mode .toolbar button:hover { background:#dce9fa; }
+    body.light-mode #match { color:#234f91; }
+    body.light-mode #transcript { color:#687994; }
+    body.light-mode #stage { background:#fff; }
+    body.light-mode #script { color:#1d2638; }
+    body.light-mode .guide { border-color:rgba(53,108,196,.6); }
+    body.light-mode * { scrollbar-color:#6d94d0 #e4eaf3; }
+    body.light-mode *::-webkit-scrollbar-track { background:#e4eaf3; }
+    body.light-mode *::-webkit-scrollbar-thumb { background:#6d94d0; border-color:#e4eaf3; }
+    body.light-mode *::-webkit-scrollbar-thumb:hover { background:#356cc4; }
+    body.light-mode #fullscreenControls { background:rgba(255,255,255,.95); border-color:#d8e0ed; }
+    section { min-width:0; min-height:0; display:flex; flex-direction:column; background:#070b16; }
+    .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:12px 18px; border-bottom:1px solid var(--line); }
+    .toolbar button { padding:7px 10px; font-size:13px; } .toolbar .grow { flex:1; }
+    #transcript { color:var(--muted); font-size:13px; max-width:430px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    #stage { position:relative; flex:1; min-height:0; overflow:auto; padding:44vh 9vw; scroll-behavior:auto; }
+    #stage.mirror { transform:scaleX(-1); }
+    #script { width:100%; margin:0 auto; max-width:none; white-space:pre-wrap; font-weight:650; letter-spacing:.01em; line-height:1.65; font-size:42px; }
+    .word { transition:color .18s,background .18s; border-radius:4px; } .word.done { opacity:.42; } .word.current { color:inherit; background:#2d67c3; box-shadow:0 0 0 4px #2d67c3; }
+    body.hide-tracking .word.current { background:transparent; box-shadow:none; }
+    body.hide-tracking .word.done { opacity:1; }
+    #script[contenteditable] { cursor:text; caret-color:var(--accent); outline:none; }
+    #script.editing .word { opacity:1; background:transparent; box-shadow:none; }
+    .guide { position:fixed; pointer-events:none; top:50%; left:350px; right:0; border-top:1px solid rgba(110,168,255,.6); }
+    .header-actions { display:flex; align-items:center; gap:12px; } #fullscreenControls { display:none; }
+    #fsTitle { display:none; }
+    body.is-fullscreen #fsTitle { position:fixed; z-index:11; top:16px; left:22px; display:block; color:#f4f7ff; font-size:18px; font-weight:700; letter-spacing:.2px; }
+    body.is-fullscreen #fullscreenControls { position:fixed; z-index:10; top:16px; right:16px; display:flex; flex-wrap:wrap; justify-content:flex-end; max-width:calc(100vw - 32px); align-items:center; gap:8px; padding:9px; border:1px solid var(--line); border-radius:10px; background:rgba(16,23,42,.94); box-shadow:0 10px 32px rgba(0,0,0,.35); }
+    body.is-fullscreen header, body.is-fullscreen aside, body.is-fullscreen .toolbar { display:none; }
+    body.is-fullscreen main { display:block; height:100vh; min-height:0; } body.is-fullscreen section { height:100%; min-height:0; overflow:hidden; }
+    body.is-fullscreen #stage { height:100%; min-height:0; flex:1 1 auto; overflow-y:auto; overflow-x:hidden; padding:50vh 9vw; }
+    body.is-fullscreen .guide { display:block; left:0; right:0; }
+    #fsFont, #fsMargin, #fsAnchor { width:115px; } #fullscreenControls button { padding:8px 10px; white-space:nowrap; } #fullscreenControls .fs-check { display:flex; align-items:center; gap:5px; margin:0; color:var(--muted); font-size:12px; font-weight:700; text-transform:none; letter-spacing:0; white-space:nowrap; }
+    @media (max-width:760px) {
+      body { height:auto; min-height:100vh; overflow:auto; }
+      header { position:sticky; top:0; z-index:20; padding:12px 14px; }
+      h1 { font-size:16px; }
+      .header-actions { gap:7px; }
+      .header-actions button { padding:8px 10px; font-size:12px; }
+      main { display:flex; flex-direction:column; height:auto; min-height:calc(100vh - 52px); }
+      aside { flex:none; width:100%; height:auto; max-height:none; padding:14px; border-right:0; border-bottom:1px solid var(--line); overflow:visible; }
+      textarea { height:180px; min-height:140px; resize:vertical; font-size:14px; }
+      .buttons { margin:10px 0 16px; gap:6px; }
+      .buttons button { padding:9px 8px; font-size:12px; }
+      .control { margin:14px 0; }
+      .check { margin:10px 0; }
+      .hint { margin-bottom:4px; }
+      section { flex:1 1 auto; height:calc(100vh - 390px); min-height:420px; }
+      .toolbar { position:sticky; top:0; z-index:5; padding:8px 10px; gap:5px; }
+      .toolbar button { padding:6px 9px; font-size:12px; }
+      #transcript { max-width:42vw; font-size:11px; }
+      #match { font-size:11px; }
+      .guide { display:none; }
+      #stage { height:100%; min-height:0; padding:28vh 5vw; }
+      #script { font-size:32px; line-height:1.55; }
+      body.is-fullscreen #fullscreenControls { top:8px; right:8px; max-width:calc(100vw - 16px); gap:5px; padding:7px; }
+      body.is-fullscreen #fsTitle { top:12px; left:14px; font-size:16px; }
+      body.is-fullscreen #stage { height:100%; min-height:0; padding:50vh 5vw; }
+      #fsFont, #fsMargin, #fsAnchor { width:88px; }
+      #fullscreenControls button { padding:7px 8px; font-size:12px; }
+    }
+  </style>
+</head>
+<body>
+  <header><h1><span>Retail Voice Prompter</span></h1><div class="header-actions"><div id="status" class="status">대기 중</div><button id="fullscreen">전체 화면</button></div></header>
+  <main>
+    <aside>
+      <label for="source">대본</label>
+      <textarea id="source">[슬라이드 1]
+안녕하세요. 지금부터 음성인식 기반 프롬프터를 시연하겠습니다.
+
+[슬라이드 2]
+마이크로 읽는 내용을 인식하면, 대본에서 가장 가까운 위치를 찾아 자동으로 따라갑니다. 잠시 멈추거나 문장을 건너뛰어도 다음 문장의 핵심 단어를 말하면 다시 위치를 맞출 수 있습니다.
+
+[슬라이드 3]
+발표나 영상 촬영 전에 브라우저의 마이크 권한을 허용해 주세요. 시작 버튼을 누른 뒤 자연스럽게 읽어 보세요.
+
+
+
+
+
+
+
+
+
+
+</textarea>
+      <div class="buttons"><button id="render">대본 적용</button><button id="reset">처음으로</button><button id="start" class="primary">인식 시작</button><button id="stop" class="stop">인식 중지</button><button id="ttsStart" class="tts">TTS 재생</button><button id="ttsStop" class="stop">TTS 중지</button></div>
+      <nav aria-label="슬라이드 이동"><label>슬라이드 이동</label><div id="slideButtons" class="slide-buttons"><button id="slidePrev" type="button">← 슬라이드 뒤로</button><button id="slideNext" type="button">슬라이드 앞으로 →</button></div></nav>
+      <div class="control"><label for="font">글자 크기 <span id="fontValue">42px</span></label><input id="font" type="range" min="24" max="100" value="42" /></div>
+      <div class="control"><label for="margin">좌우 여백 <span id="marginValue">보통 (9vw)</span></label><input id="margin" type="range" min="0" max="42" value="9" /><div class="rangeEnds"><span>아주 좁게</span><span>아주 넓게</span></div></div>
+      <div class="control"><label for="anchor">인식 기준선 <span id="anchorValue">50%</span></label><input id="anchor" type="range" min="25" max="75" value="50" /></div>
+      <label class="check"><input id="mirror" type="checkbox" /> 미러 모드</label>
+      <label class="check"><input id="lightMode" type="checkbox" /> 밝은 모드</label>
+      <label class="check"><input id="continuous" type="checkbox" checked /> 계속 듣기</label>
+      <p class="version">FE. v1.1<span class="browser-note">Chrome에 최적화되어 있습니다.</span></p>
+    </aside>
+    <section>
+      <div class="toolbar"><button id="back">← 이전</button><button id="next">다음 →</button><span class="grow"></span><span id="match">대본 대기</span><span id="transcript">인식된 말이 이곳에 표시됩니다.</span></div>
+      <div id="stage"><p id="script" role="document" aria-label="대본 화면" spellcheck="false"></p></div><div class="guide"></div>
+    </section>
+  </main>
+  <div id="fsTitle" aria-hidden="true">Retail Voice Prompter</div>
+  <div id="fullscreenControls" aria-label="전체 화면 조작">
+    <nav id="fsSlideNav" aria-label="전체 화면 슬라이드 이동" hidden><div id="fsSlideButtons" class="slide-buttons"><button id="fsSlidePrev" type="button">← 슬라이드 뒤로</button><button id="fsSlideNext" type="button">슬라이드 앞으로 →</button></div></nav>
+    <button id="fsSmaller" title="글자 작게">A−</button><input id="fsFont" type="range" min="24" max="100" value="42" aria-label="글자 크기" /><button id="fsLarger" title="글자 크게">A+</button><label class="fs-check" for="fsMargin">여백 <span id="fsMarginValue">보통</span></label><input id="fsMargin" type="range" min="0" max="42" value="9" aria-label="좌우 여백" /><label class="fs-check" for="fsAnchor">기준선 <span id="fsAnchorValue">50%</span></label><input id="fsAnchor" type="range" min="25" max="75" value="50" aria-label="인식 기준선" />
+    <button id="fsReset">처음으로</button><button id="fsStart" class="primary">인식 시작</button><button id="fsStop" class="stop">인식 중지</button><button id="fsTtsStart" class="tts">TTS 재생</button><button id="fsTtsStop" class="stop">TTS 중지</button><label class="fs-check"><input id="fsMirror" type="checkbox" /> 미러 모드</label><label class="fs-check"><input id="fsContinuous" type="checkbox" checked /> 계속 듣기</label><label class="fs-check"><input id="fsLightMode" type="checkbox" /> 밝은 모드</label><button id="exitFullscreen">나가기</button>
+  </div>
+  <script>
+    const $ = s => document.querySelector(s);
+    const source=$('#source'), script=$('#script'), stage=$('#stage'), guide=$('.guide'), status=$('#status'), transcript=$('#transcript'), match=$('#match');
+    let editingScript=false, trackingVisible=true, editCaretOffset=null;
+    function toggleTracking(){
+      trackingVisible=!trackingVisible;
+      document.body.classList.toggle('hide-tracking',!trackingVisible);
+      ['#trackingToggle','#fsTrackingToggle'].forEach(id=>{ $(id).textContent=trackingVisible?'인식 표시 숨기기':'인식 표시 보이기'; $(id).setAttribute('aria-pressed',String(!trackingVisible)); });
+    }
+    function finishScriptEdit(){
+      if(!editingScript) return;
+      source.value=script.innerText; editingScript=false; script.classList.remove('editing');
+      script.removeAttribute('contenteditable'); script.setAttribute('role','document'); script.removeAttribute('aria-multiline');
+      render(true);
+      ['#editScript','#fsEditScript'].forEach(id=>{ $(id).textContent='본문 수정'; $(id).setAttribute('aria-pressed','false'); });
+      status.textContent='대본 수정 완료';
+    }
+    function beginScriptEdit(){
+      if(editingScript) return;
+      const offset=Math.max(0,Math.min(source.value.length,editCaretOffset??words[current]?.start??0));
+      stopTts(); stopRecognition(); cancelAnimationFrame(scrollFrame); scrollFrame=0; scrollTarget=null;
+      editingScript=true; script.classList.add('editing');
+      script.textContent=source.value; script.setAttribute('contenteditable','plaintext-only');
+      script.setAttribute('role','textbox'); script.setAttribute('aria-multiline','true');
+      const scrollTop=stage.scrollTop; script.focus({preventScroll:true});
+      if(script.firstChild){
+        const range=document.createRange(); range.setStart(script.firstChild,offset); range.collapse(true);
+        const selection=window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      }
+      stage.scrollTop=scrollTop;
+      ['#editScript','#fsEditScript'].forEach(id=>{ $(id).textContent='수정 완료'; $(id).setAttribute('aria-pressed','true'); });
+      status.textContent='대본 수정 중';
+    }
+    function toggleScriptEdit(){ if(editingScript) finishScriptEdit(); else beginScriptEdit(); }
+    function rememberEditPosition(event,index){
+      editCaretOffset=words[index]?.start??0;
+      const caret=document.caretRangeFromPoint?.(event.clientX,event.clientY);
+      if(caret && script.contains(caret.startContainer)){
+        const before=caret.cloneRange(); before.selectNodeContents(script); before.setEnd(caret.startContainer,caret.startOffset);
+        editCaretOffset=before.toString().length;
+      }
+    }
+    function resetToStart(){
+      finishScriptEdit(); stopTts(); cancelAnimationFrame(scrollFrame); scrollFrame=0; scrollTarget=null; lastScrollFrame=0;
+      lastVoiceTarget=null; lastVoiceAt=0; setCurrent(0,false);
+      stage.scrollTop=0; visibleBoundsDirty=true;
+      if(listening) restartRecognitionFromAnchor();
+      match.textContent='대본 대기';
+    }
+    let words=[], wordEls=[], current=-1, recognition, listening=false, shouldListen=false, restartTimer, retryCount=0, scrollFrame, scrollTarget=null, lastScrollFrame=0, scrollSpeed=520, lastVoiceTarget=null, lastVoiceAt=0, anchorRatio=.5, restartAfterAnchor=false, allowCurrentMatch=false;
+    let recognitionPhase='idle', pendingStart=false, recognitionError='';
+    let recognitionWatchdog, phaseChangedAt=0, recognitionHadError=false;
+    let ttsActive=false, ttsChunks=[], ttsIndex=0, ttsWordMap=[], ttsWordCursor=0;
+    const normalize = s => s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu,' ').replace(/\s+/g,' ').trim();
+    const compact = s => normalize(s).replace(/\s/g,'');
+    const escapeHtml = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    let slides=[], lastResultCount=0, resultFloor=0, visibleBoundsCache, visibleBoundsDirty=true, matchMemo=null;
+    function buildSlideButtons(){
+      slides=[];
+      for(const marker of source.value.matchAll(/\[\s*슬라이드\s*(\d+)\s*\]/g)){
+        const wordIndex=words.findIndex(w=>w.end>marker.index);
+        if(wordIndex>=0) slides.push({label:'슬라이드 '+marker[1],wordIndex});
+      }
+      $('#fsSlideNav').hidden=slides.length===0;
+      updateSlideButtons();
+    }
+    function updateSlideButtons(){
+      let active=-1;
+      slides.forEach((slide,index)=>{if(slide.wordIndex<=current) active=index;});
+      const atFirst=active<=0, atLast=slides.length===0 || active>=slides.length-1;
+      ['#slidePrev','#fsSlidePrev'].forEach(id=>$(id).disabled=slides.length===0 || atFirst);
+      ['#slideNext','#fsSlideNext'].forEach(id=>$(id).disabled=atLast);
+    }
+    function stepSlide(delta){
+      finishScriptEdit();
+      if(!slides.length) return;
+      let active=-1;
+      slides.forEach((slide,index)=>{if(slide.wordIndex<=current) active=index;});
+      if(active<0){ if(delta>0) jumpToSlide(0); return; }
+      const target=Math.max(0,Math.min(slides.length-1,active+delta));
+      if(target!==active) jumpToSlide(target);
+    }
+    function jumpToSlide(index){
+      const slide=slides[index]; if(!slide) return;
+      cancelAnimationFrame(scrollFrame); scrollFrame=0; scrollTarget=null; lastScrollFrame=0;
+      lastVoiceTarget=null; lastVoiceAt=0;
+      setCurrent(slide.wordIndex,false);
+      const box=wordEls[current].getBoundingClientRect();
+      stage.scrollTop=Math.max(0,Math.min(stage.scrollHeight-stage.clientHeight,
+        stage.scrollTop+box.top+box.height/2-window.innerHeight*anchorRatio));
+      visibleBoundsDirty=true;
+      restartRecognitionFromAnchor();
+      match.textContent=slide.label+'부터 '+(listening?'음성 추적':'읽기');
+      transcript.textContent='이동한 슬라이드의 대본을 읽어 주세요.';
+    }
+    function render(keepPosition=false){
+      cancelAnimationFrame(scrollFrame); scrollFrame=0; scrollTarget=null;
+      matchMemo=null; editCaretOffset=null;
+      const previousPosition=current;
+      let wordIndex=0; words=[];
+      script.innerHTML=Array.from(source.value.matchAll(/\S+|\s+/g), match=>{
+        const raw=match[0];
+        if(/^\s+$/.test(raw)) return escapeHtml(raw);
+        const word={raw,key:compact(raw),i:wordIndex++,start:match.index,end:match.index+raw.length}; words.push(word);
+        return `<span class="word" data-i="${word.i}">${escapeHtml(raw)}</span>`;
+      }).join('');
+      wordEls=Array.from(script.querySelectorAll('.word')); visibleBoundsDirty=true; buildSlideButtons(); current=-1; setCurrent(keepPosition?Math.max(0,previousPosition):0,false); updateSlideButtons();
+    }
+    function setCurrent(i, scroll=true, source='manual'){
+      if(!words.length) return; const previous=current; current=Math.max(0,Math.min(i,words.length-1));
+      // Update only the range affected by this move instead of repainting every
+      // word on each interim speech-recognition result.
+      const from=Math.max(0,Math.min(previous,current)), to=Math.min(words.length-1,Math.max(previous,current));
+      for(let n=from;n<=to;n++) wordEls[n].className='word '+(n<current?'done':n===current?'current':'');
+      updateSlideButtons();
+      const el=wordEls[current]; if(scroll&&el) followScrollTo(el,source==='voice'||source==='tts');
+    }
+    function followScrollTo(el, voiceDriven=false){
+      const wordBox=el.getBoundingClientRect();
+      const centerY=window.innerHeight*anchorRatio;
+      const maxScroll=Math.max(0,stage.scrollHeight-stage.clientHeight);
+      const target=Math.max(0,Math.min(maxScroll,stage.scrollTop+(wordBox.top+wordBox.height/2-centerY)));
+      const now=performance.now();
+      if(voiceDriven){
+        if(lastVoiceTarget!==null && now-lastVoiceAt<3000){ const measured=Math.abs(target-lastVoiceTarget)/Math.max(.15,(now-lastVoiceAt)/1000); scrollSpeed=Math.max(180,Math.min(1800,scrollSpeed*.55+measured*.45)); }
+        else scrollSpeed=850;
+        scrollSpeed=Math.max(scrollSpeed,Math.min(2600,Math.abs(target-stage.scrollTop)*7));
+        lastVoiceTarget=target; lastVoiceAt=now;
+      } else scrollSpeed=1100;
+      scrollTarget=target;
+      if(!scrollFrame){ lastScrollFrame=0; scrollFrame=requestAnimationFrame(animateFollowScroll); }
+    }
+    function animateFollowScroll(now){
+      const elapsed=lastScrollFrame?Math.min(.05,(now-lastScrollFrame)/1000):1/60; lastScrollFrame=now;
+      scrollTarget=Math.max(0,Math.min(stage.scrollHeight-stage.clientHeight,scrollTarget??stage.scrollTop));
+      const distance=scrollTarget-stage.scrollTop;
+      if(Math.abs(distance)<=1){ stage.scrollTop=scrollTarget??stage.scrollTop; scrollFrame=0; return; }
+      const speed=Math.min(scrollSpeed,Math.max(180,Math.abs(distance)*8));
+      stage.scrollTop+=Math.sign(distance)*Math.min(Math.abs(distance),speed*elapsed);
+      visibleBoundsDirty=true;
+      scrollFrame=requestAnimationFrame(animateFollowScroll);
+    }
+    function visibleWordBounds(){
+      if(!visibleBoundsDirty && visibleBoundsCache) return visibleBoundsCache;
+      const stageBox=stage.getBoundingClientRect(), top=stageBox.top, bottom=stageBox.bottom;
+      let low=0, high=wordEls.length-1, first=-1;
+      while(low<=high){ const mid=(low+high)>>1, box=wordEls[mid].getBoundingClientRect(); if(box.bottom>=top){ first=mid; high=mid-1; } else low=mid+1; }
+      low=0; high=wordEls.length-1; let last=-1;
+      while(low<=high){ const mid=(low+high)>>1, box=wordEls[mid].getBoundingClientRect(); if(box.top<=bottom){ last=mid; low=mid+1; } else high=mid-1; }
+      if(first<0 || last<first){ const fallback=Math.max(0,current); visibleBoundsCache={first:Math.max(0,fallback-2),last:Math.min(words.length-1,fallback+16)}; }
+      else visibleBoundsCache={first,last};
+      visibleBoundsDirty=false; return visibleBoundsCache;
+    }
+    function similarity(a,b,minScore=0){
+      if(a===b) return 1; if(!a||!b) return 0;
+      const length=Math.max(a.length,b.length), budget=Math.floor(length*(1-minScore)+1e-8);
+      if(Math.abs(a.length-b.length)>budget) return 0;
+      let previous=Array.from({length:b.length+1},(_,i)=>i), next=new Array(b.length+1);
+      for(let i=1;i<=a.length;i++){
+        next.fill(budget+1); next[0]=i; let rowMin=next[0];
+        for(let j=Math.max(1,i-budget);j<=Math.min(b.length,i+budget);j++){
+          next[j]=Math.min(previous[j]+1,next[j-1]+1,previous[j-1]+(a[i-1]===b[j-1]?0:1)); rowMin=Math.min(rowMin,next[j]);
+        }
+        if(rowMin>budget) return 0;
+        [previous,next]=[next,previous];
+      }
+      return 1-previous[b.length]/Math.max(a.length,b.length);
+    }
+    function findPosition(alternatives, live=false){
+      let best={score:0,pos:current,text:''};
+      const scores=new Map();
+      const visible=visibleWordBounds();
+      const normalized=alternatives.slice(0,3).map(text=>({text,full:compact(text)}));
+      const longest=Math.max(0,...normalized.map(item=>item.full.length));
+      const reach=Math.min(64,Math.max(live?12:24,Math.ceil(longest/2)));
+      const from=Math.max(visible.first,current-8), to=Math.min(visible.last,Math.max(current,visible.first)+reach);
+      if(from>to) return alternatives[0]||'';
+      const memoKey=JSON.stringify([current,from,to,live,allowCurrentMatch,normalized.map(item=>item.full)]);
+      if(matchMemo?.key===memoKey) return matchMemo.text;
+      const variantsFor=full=>{
+        const variants=new Set([full.slice(-96)]);
+        for(const size of [64,40,24,12]) if(full.length>size) variants.add(full.slice(-size));
+        return variants;
+      };
+      // Exact recent speech is the common case. Search one joined window,
+      // and map its character endpoints back to complete displayed words.
+      let windowText=''; const offsets=[];
+      for(let i=from;i<=to;i++){ const start=windowText.length; windowText+=words[i].key; offsets.push({start,end:windowText.length,index:i}); }
+      let exact=null;
+      for(const {text,full} of normalized){
+        if(full.length<3) continue;
+        for(const heard of variantsFor(full)){
+          const tail=heard.length<full.length;
+          let at=windowText.indexOf(heard);
+          while(at>=0){
+            const end=at+heard.length;
+            const first=offsets.find(word=>word.end>at);
+            const last=offsets.find(word=>word.end===end&&word.end>word.start);
+            if(first&&last && (tail||first.start===at) && (first.index>=current||(heard.length>=12&&last.index>current)) && last.index>=current && (!live||last.index>current||allowCurrentMatch)
+              && (heard.length>=12||last.index-current<=3)){
+              if(!exact||heard.length>exact.length||(heard.length===exact.length&&last.index<exact.pos)) exact={pos:last.index,text,length:heard.length};
+            }
+            at=windowText.indexOf(heard,at+1);
+          }
+        }
+      }
+      if(exact){
+        allowCurrentMatch=false; setCurrent(exact.pos,true,'voice'); match.textContent='대본 일치 100%'; match.style.color='#82e6ac';
+        matchMemo={key:memoKey,text:exact.text}; return exact.text;
+      }
+      for(const {text,full} of normalized){
+        if(full.length<3) continue;
+        // A continuous interim transcript includes speech already followed.
+        // Match its recent tail as well, even when speech has no spaces.
+        for(const heard of variantsFor(full)){
+        const tail=heard.length<full.length;
+        for(let start=from;start<=to;start++){
+          let candidate='';
+          for(let end=start;end<=to && end<start+48;end++){
+            candidate+=words[end].key;
+            if(candidate.length<heard.length*.55) continue;
+            if(candidate.length>heard.length*1.5+6) break;
+            // A tail may start in the middle of a written word.
+            const compared=tail&&candidate.length>heard.length?candidate.slice(-heard.length):candidate;
+            let threshold=tail?(heard.length>=24?.84:.88):live?(heard.length<7?.92:.76):(heard.length<6?.82:.62);
+            const distance=end-current;
+            // Recent context is useful evidence when a continuous transcript
+            // still includes words that have already been followed.
+            if(distance>=0 && distance<=6 && heard.length>=8){
+              threshold=tail?.80:(live?.74:.70);
+              if(heard.length>=24) threshold=Math.max(threshold,.78);
+            }
+            if(distance>(live?8:16)) threshold=Math.max(threshold,heard.length>=24&&start<=current+3?.88:.94);
+            const penalty=start<current?.03:0, required=threshold+penalty;
+            if(required>1) continue;
+            const cacheKey=heard+'|'+compared+'|'+required;
+            if(!scores.has(cacheKey)) scores.set(cacheKey,similarity(heard,compared,required));
+            const score=scores.get(cacheKey)-penalty;
+            if(score<threshold || end<current || (live&&end===current&&!allowCurrentMatch)) continue;
+            if(heard.length<7 && end-current>3) continue;
+            const rank=score+Math.min(heard.length,64)*.0006;
+            if(rank>(best.rank||0) || (rank===best.rank && end<best.pos)) best={score,rank,pos:end,text};
+          }
+        }
+        }
+      }
+      if(best.text){ allowCurrentMatch=false; setCurrent(best.pos,true,'voice'); match.textContent=`대본 일치 ${Math.round(best.score*100)}%`; match.style.color='#82e6ac'; matchMemo={key:memoKey,text:best.text}; return best.text; }
+      matchMemo={key:memoKey,text:alternatives[0]||''};
+      match.textContent='대본 위치 확인 중'; match.style.color='var(--muted)'; return alternatives[0]||'';
+    }
+    function setupRecognition(){
+      const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+      if(!SpeechRecognition){ status.textContent='이 브라우저는 음성 인식을 지원하지 않습니다'; return false; }
+      recognition=new SpeechRecognition(); recognition.lang='ko-KR'; recognition.interimResults=true; recognition.continuous=true; recognition.maxAlternatives=3;
+      const engine=recognition;
+      recognition.onstart=()=>{
+        if(engine!==recognition) return;
+        if(!shouldListen || editingScript || recognitionPhase==='stopping'){
+          recognitionPhase='stopping'; recognition.abort(); return;
+        }
+        recognitionPhase='listening'; phaseChangedAt=performance.now(); listening=true; pendingStart=false;
+        recognitionHadError=false; armRecognitionWatchdog();
+        lastResultCount=0; resultFloor=0; matchMemo=null;
+        lastVoiceTarget=null; lastVoiceAt=0; status.textContent='● 듣는 중'; status.className='status on'; updateListeningUI(true);
+      };
+      recognition.onresult=e=>{
+        if(engine!==recognition || recognitionPhase!=='listening' || !shouldListen || restartAfterAnchor || editingScript) return;
+        retryCount=0;
+        lastResultCount=e.results.length;
+        let preview='';
+        const first=Math.max(e.resultIndex,resultFloor);
+        // Commit final results in order, but evaluate only the newest interim
+        // result so rapid Android updates never queue redundant searches.
+        for(let i=first;i<e.results.length;i++){
+          const result=e.results[i], alternatives=Array.from(result,alt=>alt.transcript);
+          if(result.isFinal){ const accepted=findPosition(alternatives); transcript.textContent='최종: '+accepted; }
+        }
+        const latest=e.results.length-1;
+        if(latest>=first && !e.results[latest].isFinal){
+          const alternatives=Array.from(e.results[latest],alt=>alt.transcript);
+          preview=alternatives[0]||''; findPosition(alternatives,true);
+        }
+        if(preview) transcript.textContent='인식 중: '+preview.trim();
+      };
+      recognition.onerror=e=>{
+        if(engine!==recognition) return;
+        if(e.error==='aborted') return;
+        recognitionHadError=e.error!=='no-speech';
+        const fatal=['not-allowed','service-not-allowed','audio-capture','language-not-supported'].includes(e.error);
+        if(fatal){
+          shouldListen=false; pendingStart=false; restartAfterAnchor=false; clearTimeout(restartTimer); clearTimeout(recognitionWatchdog);
+          const messages={ 'not-allowed':'마이크 권한이 차단되었습니다. 사이트의 마이크 권한을 허용해 주세요.', 'service-not-allowed':'이 브라우저에서 음성인식 서비스를 사용할 수 없습니다.', 'audio-capture':'마이크를 사용할 수 없습니다. 연결 상태를 확인해 주세요.', 'language-not-supported':'한국어 음성인식을 지원하지 않습니다.' };
+          recognitionError=(!window.isSecureContext && e.error==='not-allowed')?'HTTPS 또는 localhost로 열어 주세요':messages[e.error];
+          status.textContent=recognitionError; status.className='status'; updateListeningUI(false);
+        }
+        else {
+          status.textContent='연결 재시도 중…';
+          if(shouldListen && $('#continuous').checked && recognitionPhase!=='stopping'){
+            recognitionPhase='stopping'; phaseChangedAt=performance.now();
+            try{ engine.abort(); }catch(_){ recoverRecognition(); }
+          }
+        }
+      };
+      recognition.onend=()=>{
+        if(engine!==recognition) return;
+        clearTimeout(recognitionWatchdog);
+        const forceRestart=restartAfterAnchor||pendingStart; restartAfterAnchor=false; pendingStart=false;
+        recognitionPhase='idle'; phaseChangedAt=performance.now(); listening=false; updateListeningUI(false);
+        if(shouldListen && !editingScript && ($('#continuous').checked||forceRestart)) scheduleRestart(forceRestart,forceRestart?80:recognitionHadError?undefined:120);
+        else { if(!editingScript&&!ttsActive) status.textContent=recognitionError||'대기 중'; status.className='status'; }
+      };
+      return true;
+    }
+    function updateListeningUI(active){
+      $('#start').textContent=active?'듣는 중…':'인식 시작'; $('#fsStart').textContent=active?'듣는 중…':'인식 시작';
+      $('#start').classList.toggle('listening',active); $('#fsStart').classList.toggle('listening',active);
+    }
+    function beginRecognitionAttempt(){
+      if(!shouldListen||editingScript||recognitionPhase!=='idle') return;
+      recognitionPhase='starting'; phaseChangedAt=performance.now(); pendingStart=false; status.textContent='음성인식 시작 중…';
+      armRecognitionWatchdog();
+      try{ recognition.start(); }
+      catch(error){
+        if(error.name==='InvalidStateError'){ recoverRecognition(); return; }
+        clearTimeout(recognitionWatchdog);
+        recognitionPhase='idle'; shouldListen=false; updateListeningUI(false);
+        recognitionError=error.name==='NotAllowedError'?'마이크 권한을 허용해 주세요.':'음성인식을 시작하지 못했습니다. 인식 시작을 다시 눌러 주세요.';
+        status.textContent=recognitionError;
+      }
+    }
+    function armRecognitionWatchdog(){
+      clearTimeout(recognitionWatchdog);
+      if(!shouldListen) return;
+      recognitionWatchdog=setTimeout(()=>{
+        if(!shouldListen||editingScript||ttsActive) return;
+        const now=performance.now(), age=now-phaseChangedAt;
+        // Silence and delayed speech results are not proof of engine failure.
+        // Recover only when a requested start/stop transition never completes.
+        const stuck=(recognitionPhase==='starting'&&age>30000)||(recognitionPhase==='stopping'&&age>2500);
+        if(stuck){ recoverRecognition(); return; }
+        armRecognitionWatchdog();
+      },1000);
+    }
+    function recoverRecognition(){
+      clearTimeout(recognitionWatchdog); clearTimeout(restartTimer);
+      const old=recognition; recognition=null;
+      if(old){ try{ old.abort(); }catch(_){} }
+      recognitionPhase='idle'; listening=false; restartAfterAnchor=false; pendingStart=false;
+      updateListeningUI(false); matchMemo=null;
+      if(!shouldListen||editingScript||ttsActive) return;
+      status.textContent='음성 연결 복구 중…';
+      if(setupRecognition()) scheduleRestart(true);
+      else shouldListen=false;
+    }
+    function scheduleRestart(force=false, delayOverride){
+      clearTimeout(restartTimer); const delay=delayOverride??Math.min(350+retryCount++*250,3000);
+      restartTimer=setTimeout(()=>{
+        if(shouldListen && (force||$('#continuous').checked) && recognition && recognitionPhase==='idle') beginRecognitionAttempt();
+      },delay);
+    }
+    function startRecognition(){
+      finishScriptEdit();
+      if(!recognition&&!setupRecognition()){ shouldListen=false; return; }
+      shouldListen=true; recognitionError=''; retryCount=0; clearTimeout(restartTimer);
+      if(recognitionPhase==='stopping'){ pendingStart=true; armRecognitionWatchdog(); status.textContent='음성인식 다시 시작 중…'; return; }
+      if(recognitionPhase==='starting'||recognitionPhase==='listening') return;
+      beginRecognitionAttempt();
+    }
+    function stopRecognition(){
+      shouldListen=false; pendingStart=false; restartAfterAnchor=false; allowCurrentMatch=false;
+      clearTimeout(restartTimer); clearTimeout(recognitionWatchdog); listening=false; updateListeningUI(false);
+      if(recognition && recognitionPhase!=='idle' && recognitionPhase!=='stopping'){
+        recognitionPhase='stopping'; phaseChangedAt=performance.now();
+        try{ recognition.abort(); }catch(_){ recognitionPhase='idle'; }
+      }
+    }
+    function restartRecognitionFromAnchor(){
+      matchMemo=null;
+      allowCurrentMatch=true; resultFloor=0; lastResultCount=0; retryCount=0;
+      if(!shouldListen||!recognition) return false;
+      restartAfterAnchor=true; pendingStart=true; clearTimeout(restartTimer);
+      if(recognitionPhase==='idle'){ restartAfterAnchor=false; scheduleRestart(true,80); return true; }
+      if(recognitionPhase!=='stopping'){
+        recognitionPhase='stopping'; phaseChangedAt=performance.now();
+        try{ recognition.abort(); }catch(_){ recoverRecognition(); }
+      }
+      armRecognitionWatchdog();
+      return true;
+    }
+    function updateTtsUI(active){
+      ['#ttsStart','#fsTtsStart'].forEach(id=>{ const el=$(id); el.textContent=active?'TTS 재생 중…':'TTS 재생'; el.classList.toggle('tts-active',active); el.disabled=active; });
+      ['#ttsStop','#fsTtsStop'].forEach(id=>$(id).disabled=!active);
+    }
+    function buildTtsText(){
+      const markerRanges=Array.from(source.value.matchAll(/\[\s*슬라이드\s*\d+\s*\]/g), marker=>({start:marker.index,end:marker.index+marker[0].length}));
+      let text=''; ttsWordMap=[];
+      words.slice(Math.max(0,current)).forEach(word=>{
+        const isMarker=markerRanges.some(range=>word.start>=range.start&&word.end<=range.end);
+        if(isMarker) return;
+        if(text) text+=' ';
+        const start=text.length; text+=word.raw; ttsWordMap.push({start,end:text.length,index:word.i});
+      });
+      return text.trim();
+    }
+    function splitTtsText(text, maxLength=220){
+      const chunks=[]; let offset=0;
+      while(offset<text.length){
+        let end=Math.min(text.length,offset+maxLength);
+        if(end<text.length){
+          const sentenceEnd=Math.max(text.lastIndexOf('.',end),text.lastIndexOf('?',end),text.lastIndexOf('!',end),text.lastIndexOf('。',end));
+          end=sentenceEnd-offset>=80?sentenceEnd+1:text.lastIndexOf(' ',end);
+          if(end<=offset) end=Math.min(text.length,offset+maxLength);
+        }
+        const chunkStart=offset; const value=text.slice(chunkStart,end).trim();
+        if(value){ const leading=text.slice(chunkStart,end).indexOf(value); chunks.push({text:value,start:chunkStart+leading}); }
+        offset=end; while(text[offset]===' ') offset++;
+      }
+      return chunks;
+    }
+    function stopTts(){
+      ttsActive=false; ttsChunks=[]; ttsIndex=0; ttsWordMap=[]; ttsWordCursor=0;
+      window.speechSynthesis?.cancel(); updateTtsUI(false);
+    }
+    function speakNextChunk(){
+      if(!ttsActive || ttsIndex>=ttsChunks.length){ ttsActive=false; updateTtsUI(false); if(!listening) status.textContent='TTS 재생 완료'; return; }
+      const chunk=ttsChunks[ttsIndex++];
+      const utterance=new SpeechSynthesisUtterance(chunk.text); utterance.lang='ko-KR'; utterance.rate=1;
+      const koreanVoice=speechSynthesis.getVoices().find(voice=>voice.lang.toLowerCase().startsWith('ko'));
+      if(koreanVoice) utterance.voice=koreanVoice;
+      utterance.onboundary=event=>{
+        if(!ttsActive || typeof event.charIndex!=='number') return;
+        const position=chunk.start+event.charIndex;
+        while(ttsWordCursor<ttsWordMap.length-1&&ttsWordMap[ttsWordCursor+1].start<=position) ttsWordCursor++;
+        const target=ttsWordMap[ttsWordCursor]?.index;
+        if(Number.isInteger(target)&&target>=current) setCurrent(target,true,'tts');
+      };
+      utterance.onend=()=>{ if(ttsActive) setTimeout(speakNextChunk,30); };
+      utterance.onerror=()=>{ if(ttsActive){ ttsActive=false; updateTtsUI(false); status.textContent='TTS 재생을 중지했습니다'; } };
+      speechSynthesis.speak(utterance);
+    }
+    function startTts(){
+      finishScriptEdit();
+      if(!window.speechSynthesis || !window.SpeechSynthesisUtterance){ status.textContent='이 브라우저는 TTS를 지원하지 않습니다'; return; }
+      const text=buildTtsText();
+      if(!text){ status.textContent='읽을 대본이 없습니다'; return; }
+      stopRecognition();
+      stopTts();
+      // stopTts clears the map, so rebuild it for the active TTS session.
+      const activeText=buildTtsText(); ttsChunks=splitTtsText(activeText); ttsIndex=0; ttsWordCursor=0; ttsActive=true; updateTtsUI(true); status.textContent='● TTS 재생 중'; speakNextChunk();
+    }
+    function setFont(value){ const px=Math.max(24,Math.min(100,Number(value))); script.style.fontSize=px+'px'; visibleBoundsDirty=true; $('#font').value=px; $('#fsFont').value=px; $('#fontValue').textContent=px+'px'; }
+    function setMargin(value){ const vw=Math.max(0,Math.min(42,Number(value))); const label=vw<=4?'아주 좁게':vw<=13?'보통':vw<=25?'넓게':'아주 넓게'; stage.style.paddingLeft=vw+'vw'; stage.style.paddingRight=vw+'vw'; visibleBoundsDirty=true; $('#margin').value=vw; $('#fsMargin').value=vw; $('#marginValue').textContent=`${label} (${vw}vw)`; $('#fsMarginValue').textContent=label; }
+    function setAnchor(value,reposition=true){ const pct=Math.max(25,Math.min(75,Number(value))); anchorRatio=pct/100; const buffer=Math.max(pct,100-pct); guide.style.top=pct+'%'; stage.style.paddingTop=buffer+'vh'; stage.style.paddingBottom=buffer+'vh'; visibleBoundsDirty=true; $('#anchor').value=pct; $('#fsAnchor').value=pct; $('#anchorValue').textContent=pct+'%'; $('#fsAnchorValue').textContent=pct+'%'; if(reposition&&current>=0) setCurrent(current,true); }
+    function setMirror(active){ stage.classList.toggle('mirror',active); $('#mirror').checked=active; $('#fsMirror').checked=active; }
+    function setLightMode(active){
+      document.body.classList.toggle('light-mode',active);
+      $('#lightMode').checked=active; $('#fsLightMode').checked=active;
+      try{ localStorage.setItem('retailVoiceLightMode',active?'1':'0'); }catch(_){ }
+    }
+    function setContinuous(active){ $('#continuous').checked=active; $('#fsContinuous').checked=active; if(!active) clearTimeout(restartTimer); else if(shouldListen && !listening) scheduleRestart(); }
+    function syncFullscreen(){ const active=!!document.fullscreenElement; document.body.classList.toggle('is-fullscreen',active); $('#fullscreen').textContent=active?'전체 화면 종료':'전체 화면'; visibleBoundsDirty=true; requestAnimationFrame(()=>setCurrent(current,true)); }
+    function enterFullscreen(){ document.documentElement.requestFullscreen().catch(()=>{ status.textContent='전체 화면을 시작할 수 없습니다'; }); }
+    $('#render').onclick=()=>{ stopTts(); render(); }; $('#reset').onclick=()=>{ stopTts(); setCurrent(0); match.textContent='대본 대기';}; $('#next').onclick=()=>setCurrent(current+1); $('#back').onclick=()=>setCurrent(current-1);
+    $('#slidePrev').onclick=()=>stepSlide(-1); $('#slideNext').onclick=()=>stepSlide(1);
+    $('#fsSlidePrev').onclick=()=>stepSlide(-1); $('#fsSlideNext').onclick=()=>stepSlide(1);
+    $('#font').oninput=e=>setFont(e.target.value); $('#fsFont').oninput=e=>setFont(e.target.value);
+    $('#margin').oninput=e=>setMargin(e.target.value); $('#fsMargin').oninput=e=>setMargin(e.target.value);
+    $('#anchor').oninput=e=>setAnchor(e.target.value); $('#fsAnchor').oninput=e=>setAnchor(e.target.value);
+    $('#mirror').onchange=e=>setMirror(e.target.checked); $('#fsMirror').onchange=e=>setMirror(e.target.checked);
+    $('#continuous').onchange=e=>setContinuous(e.target.checked); $('#fsContinuous').onchange=e=>setContinuous(e.target.checked);
+    $('#lightMode').onchange=e=>setLightMode(e.target.checked); $('#fsLightMode').onchange=e=>setLightMode(e.target.checked);
+    stage.addEventListener('scroll',()=>{ visibleBoundsDirty=true; },{passive:true}); window.addEventListener('resize',()=>{ visibleBoundsDirty=true; });
+    script.addEventListener('beforeinput',event=>{ if(!editingScript) event.preventDefault(); });
+    script.addEventListener('input',()=>{ if(editingScript){ source.value=script.innerText; visibleBoundsDirty=true; matchMemo=null; } });
+    script.addEventListener('click',event=>{
+      if(editingScript) return;
+      const word=event.target.closest('.word'); if(!word||!script.contains(word)) return;
+      const index=Number(word.dataset.i); if(!Number.isInteger(index)) return;
+      rememberEditPosition(event,index);
+      lastVoiceTarget=null; lastVoiceAt=0; setCurrent(index,false,'manual');
+      const restarted=restartRecognitionFromAnchor();
+      match.textContent=restarted?'클릭 위치에서 인식 다시 시작 중':'클릭 위치부터 인식 준비 완료'; match.style.color='#82e6ac';
+      transcript.textContent=restarted?'새 위치부터 말해 주세요.':'인식 시작 후 클릭 위치부터 말해 주세요.';
+    });
+    $('#start').onclick=()=>{ stopTts(); startRecognition(); }; $('#fsStart').onclick=()=>{ stopTts(); startRecognition(); }; $('#stop').onclick=stopRecognition; $('#fsStop').onclick=stopRecognition;
+    $('#ttsStart').onclick=startTts; $('#fsTtsStart').onclick=startTts; $('#ttsStop').onclick=stopTts; $('#fsTtsStop').onclick=stopTts;
+    $('#fsReset').onclick=()=>{ stopTts(); setCurrent(0); match.textContent='대본 대기';}; $('#fsSmaller').onclick=()=>setFont(Number($('#fsFont').value)-2); $('#fsLarger').onclick=()=>setFont(Number($('#fsFont').value)+2);
+    $('#fullscreen').onclick=enterFullscreen; $('#exitFullscreen').onclick=()=>document.exitFullscreen(); document.addEventListener('fullscreenchange',syncFullscreen);
+    for(const [container,prefix] of [[$('.toolbar'),''],[$('#fullscreenControls'),'fs']]){
+      const toggle=document.createElement('button'); toggle.id=prefix?'fsTrackingToggle':'trackingToggle'; toggle.textContent='인식 표시 숨기기'; toggle.setAttribute('aria-pressed','false'); toggle.onclick=toggleTracking; container.appendChild(toggle);
+      const edit=document.createElement('button'); edit.id=prefix?'fsEditScript':'editScript'; edit.textContent='본문 수정'; edit.setAttribute('aria-pressed','false'); edit.onclick=toggleScriptEdit; container.appendChild(edit);
+    }
+    $('#reset').onclick=resetToStart; $('#fsReset').onclick=resetToStart;
+    $('#render').onclick=()=>{ if(editingScript) finishScriptEdit(); else { stopTts(); render(); } };
+    render(); setFont(42); setMargin(9); setAnchor(50,false); setMirror(false); setContinuous(true); setLightMode((()=>{try{return localStorage.getItem('retailVoiceLightMode')==='1';}catch(_){return false;}})()); updateTtsUI(false);
+  </script>
+</body>
+</html>
